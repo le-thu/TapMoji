@@ -55,18 +55,19 @@ struct ContentView: View {
     @State private var bounceScale: CGFloat = 1.0
     @AppStorage("themeMode") private var themeMode = "System"
 
-    let emojis = ["🍕", "🍔", "🍟", "🌭", "🍿", "🥐", "🥯", "🍞", "🥨", "🧀", "🥚", "🍳", "🥓", "🍖", "🍗", "🥩", "🌮", "🌯", "🥗", "🍜", "🍝", "🍣", "🍱", "🥟", "🍛", "🍲", "🥘", "🫕", "🥣", "🧆", "🥙", "🫔", "🍙", "🍘", "🍥"]
+    let emojis = [
+        "🍕", "🍔", "🍟", "🌭", "🍿", "🥐", "🥯", "🍞", "🥨", "🧀",
+        "🥚", "🍳", "🥓", "🍖", "🍗", "🥩", "🌮", "🌯", "🥗", "🍜",
+        "🍝", "🍣", "🍱", "🥟", "🍛", "🍲", "🥘", "🫕", "🥣", "🧆",
+        "🥙", "🫔", "🍙", "🍘", "🍥", "🥑", "🌽", "🥕", "🧅", "🧄",
+        "🥦", "🫑", "🌶️", "🫒", "🥬", "🥒", "🍅", "🫛", "🥔", "🍆",
+        "🫘", "🥜", "🫚", "🍄", "🧈", "🥫", "🫙",
+    ]
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: colorScheme == .dark
-                    ? [Color(white: 0.11), Color(white: 0.13)]
-                    : [Color(red: 0.99, green: 0.96, blue: 0.93), Color(red: 0.96, green: 0.94, blue: 0.91)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            (colorScheme == .dark ? Color(white: 0.12) : Color(red: 0.98, green: 0.95, blue: 0.92))
+                .ignoresSafeArea()
 
             Text(currentEmoji)
                 .font(.system(size: 124))
