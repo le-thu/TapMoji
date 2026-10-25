@@ -7,44 +7,58 @@
 
 import SwiftUI
 import AVFoundation
-import UIKit
 
 class SoundManager {
     static let shared = SoundManager()
-    private var audioEngine = AVAudioEngine()
-    private var playerNode = AVAudioPlayerNode()
+    private let audioEngine = AVAudioEngine()
+    private let playerNode = AVAudioPlayerNode()
+    private var popBuffer: AVAudioPCMBuffer?
+    private var clickBuffer: AVAudioPCMBuffer?
 
     private init() {
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1) else { return }
         audioEngine.attach(playerNode)
-        audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1))
+        audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: format)
         try? AVAudioSession.sharedInstance().setCategory(.ambient, options: .mixWithOthers)
         try? audioEngine.start()
+
+        popBuffer = makeTone(format: format, freq: 180, duration: 0.12, decay: 20, pitchDrop: true)
+        clickBuffer = makeTone(format: format, freq: 120, duration: 0.06, decay: 60, pitchDrop: false)
     }
 
     func playPop() {
-        playTone(freq: 180, duration: 0.12, decay: 20, pitchDrop: true)
+        play(popBuffer)
     }
 
     func playClick() {
-        playTone(freq: 120, duration: 0.06, decay: 60, pitchDrop: false)
+        play(clickBuffer)
     }
 
-    private func playTone(freq: Double, duration: Double, decay: Double, pitchDrop: Bool) {
-        let sampleRate = 44100.0
+    private func play(_ buffer: AVAudioPCMBuffer?) {
+        guard let buffer else { return }
+        // Calls, Siri, and route changes stop the engine
+        if !audioEngine.isRunning {
+            do { try audioEngine.start() } catch { return }
+        }
+        playerNode.stop()
+        playerNode.scheduleBuffer(buffer)
+        playerNode.play()
+    }
+
+    private func makeTone(format: AVAudioFormat, freq: Double, duration: Double, decay: Double, pitchDrop: Bool) -> AVAudioPCMBuffer? {
+        let sampleRate = format.sampleRate
         let frameCount = AVAudioFrameCount(sampleRate * duration)
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!, frameCapacity: frameCount) else { return }
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount),
+              let samples = buffer.floatChannelData?[0] else { return nil }
         buffer.frameLength = frameCount
 
         for i in 0..<Int(frameCount) {
             let t = Double(i) / sampleRate
             let f = pitchDrop ? freq * (1 + exp(-t * 40) * 2) : freq
             let sample = sin(2 * .pi * f * t) * exp(-t * decay)
-            buffer.floatChannelData![0][i] = Float(sample) * 0.6
+            samples[i] = Float(sample) * 0.6
         }
-
-        playerNode.stop()
-        playerNode.scheduleBuffer(buffer)
-        playerNode.play()
+        return buffer
     }
 }
 
@@ -53,7 +67,7 @@ struct ContentView: View {
     @Environment(\.verticalSizeClass) var verticalSizeClass
     @State private var currentEmoji = "🍕"
     @State private var bounceScale: CGFloat = 1.0
-    @AppStorage("themeMode") private var themeMode = "System"
+    @AppStorage("isDarkMode") private var isDarkMode = false
 
     let emojis = [
         "🍕", "🍔", "🍟", "🌭", "🍿", "🥐", "🥯", "🍞", "🥨", "🧀",
@@ -73,30 +87,29 @@ struct ContentView: View {
                 .font(.system(size: 124))
                 .scaleEffect(bounceScale)
                 .offset(y: verticalSizeClass == .compact ? 0 : -40)
-            
+
             VStack {
                 Spacer()
-                Picker("Theme", selection: $themeMode) {
-                    Image(systemName: "circle.lefthalf.filled").tag("System")
-                    Image(systemName: "sun.max.fill").tag("Light")
-                    Image(systemName: "moon.fill").tag("Dark")
+                Picker("Theme", selection: $isDarkMode) {
+                    Image(systemName: "sun.max.fill").tag(false)
+                    Image(systemName: "moon.fill").tag(true)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 120)
+                .frame(width: 80)
                 .scaleEffect(1.25)
                 .padding(.bottom, 20)
             }
         }
         .onTapGesture {
-            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
             SoundManager.shared.playPop()
             currentEmoji = emojis.filter { $0 != currentEmoji }.randomElement() ?? "🍕"
             bounceScale = 1.25
             withAnimation(.spring(response: 0.2, dampingFraction: 0.5)) { bounceScale = 1.0 }
         }
-        .preferredColorScheme(themeMode == "System" ? nil : (themeMode == "Dark" ? .dark : .light))
-        .onChange(of: themeMode) { _, _ in
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        .sensoryFeedback(.impact(flexibility: .soft), trigger: currentEmoji)
+        .sensoryFeedback(.impact(weight: .light), trigger: isDarkMode)
+        .preferredColorScheme(isDarkMode ? .dark : .light)
+        .onChange(of: isDarkMode) { _, _ in
             SoundManager.shared.playClick()
         }
     }
